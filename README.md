@@ -221,7 +221,7 @@ wget ftp://ftp.ensembl.org/pub/release-80/fasta/takifugu_rubripes/dna/Takifugu_r
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/petromyzon_marinus/dna/Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.fa.gz
 wget ftp://ftp.ensemblgenomes.org/pub/metazoa/release-26/fasta/strongylocentrotus_purpuratus/dna/Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.fa.gz
 
-gunzip *.gz
+gunzip "*.gz" 
 ```
 
 We'll also need the full collection of protein sequences from these organisms:
@@ -242,7 +242,7 @@ wget ftp://ftp.ensembl.org/pub/release-80/fasta/takifugu_rubripes/pep/Takifugu_r
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/petromyzon_marinus/pep/Petromyzon_marinus.Pmarinus_7.0.pep.all.fa.gz
 wget ftp://ftp.ensemblgenomes.org/pub/metazoa/release-26/fasta/strongylocentrotus_purpuratus/pep/Strongylocentrotus_purpuratus.GCA_000002235.2.26.pep.all.fa.gz
 
-gunzip *
+gunzip "*"
 ```
 
 We're going to use exonerate protein2genome to map all of these proteins to their respective genomes.
@@ -279,13 +279,13 @@ esd2esi Rattus_norvegicus.Rnor_6.0.dna.toplevel.esd Rattus_norvegicus.Rnor_6.0.d
 The above will take several hours. We want to map the orthologous proteins from each species to their own reference genomes. So, we will need to find the orthologous proteins from each species. First we'll make blast databases from each protein set:
 ```bash
 cd proteins
-for i in *.pep.all.fa; do makeblastdb -in $i -dbtype prot; done
+for i in "*.pep.all.fa"; do makeblastdb -in $i -dbtype prot; done
 ```
 
 Now we'll iterate through each of the protein sets and blastx the mouse cDNAs to each, only outputting the best match:
 
 ```bash
-for i in *.pep.all.fa; do OUTFILE=$i".proteinMatches"; blastx -db $i -query ../../mmGRCm38.cdna.rand10kLongest.fa -outfmt 6 -max_target_seqs 1 -num_threads 10 -out $OUTFILE ; done
+for i in "*.pep.all.fa"; do OUTFILE=$i".proteinMatches"; blastx -db $i -query ../../mmGRCm38.cdna.rand10kLongest.fa -outfmt 6 -max_target_seqs 1 -num_threads 10 -out $OUTFILE ; done
 ```
 
 The blastx'ing will also take a few hours.
@@ -331,7 +331,7 @@ Now we'll set these aside:
 
 ```bash
 mkdir matchingProteins
-mv *.pep.matching.fa matchingProteins/
+mv "*.pep.matching.fa" matchingProteins/
 ```
 
 Exonerate protein2genome is very slow unless you change some settings around, and it seems to run faster when you separate each sequence into its own file. Using only one sequence per run also has the benefit of showing you where you left off if exonerate segfaults.
