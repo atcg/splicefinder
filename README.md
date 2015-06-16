@@ -51,26 +51,26 @@ ATCGGAGGGATACGAG
 
 Looking at this output tells us a few things. First of all, some of the transcripts are extremely short. Since the purpose of this method is to infer contiguous genomic sequence chunks long enough to use target enrichment array design, we know we'll want to filter out all cDNAs that are too short to actually yield a target. We'll arbitrarily set this limit at 200bp for now. The following script will output all sequences longer than 199bp:
 
+```perl
+#!/usr/bin/perl
 
-    #!/usr/bin/perl
-    
-    #filterUnder200.pl
-    
-    use strict;
-    use warnings;
-    use Bio::SeqIO;
-    
-    my $seqIn = Bio::SeqIO->new(-file => "Mus_musculus.GRCm38.cdna.all.fa",
-                                -format => 'fasta');
-    my $seqOut = Bio::SeqIO->new(-file => ">mmGRCm38.cdna.200bpPlus.fa",
-                                 -format => "fasta");
-    
-    while (my $seq = $seqIn->next_seq()) {
-        if ($seq->length() > 199) {
-            $seqOut->write_seq($seq);
-        }
+#filterUnder200.pl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
+
+my $seqIn = Bio::SeqIO->new(-file => "Mus_musculus.GRCm38.cdna.all.fa",
+                            -format => 'fasta');
+my $seqOut = Bio::SeqIO->new(-file => ">mmGRCm38.cdna.200bpPlus.fa",
+                             -format => "fasta");
+
+while (my $seq = $seqIn->next_seq()) {
+    if ($seq->length() > 199) {
+        $seqOut->write_seq($seq);
     }
-
+}
+```
 
 After running, we have:
 
@@ -95,43 +95,43 @@ grep "gene:" mmGRCm38.cdna.200bpPlus.fa | awk '{print $4}' | uniq -c | wc -l
 
 Randomly choosing one transcript from each gene name seems like one good way to reduce the dataset without losing genomic coverage. But choosing the longest cDNA from each gene name might give us better success at mapping to other genomes. Let's do that with the following script:
 
+```perl
+#!/usr/bin/perl
 
-    #!/usr/bin/perl
-    
-    # longestFromGenes.pl
-    
-    use strict;
-    use warnings;
-    use Bio::SeqIO;
-    
-    
-    my %seqHash;
-    my $seqIn1 = Bio::SeqIO->new(-file => "mmGRCm38.cdna.200bpPlus.fa",
-                                 -format => "fasta");
-    my $seqOut = Bio::SeqIO->new(-file => ">mmGRCm38.cdna.longestFromGenes.fa",
-                                 -format => "fasta");
-    
-    while (my $seq = $seqIn1->next_seq()) {
-        if ($seq->desc() =~ /.*gene\:(\S+)\s/) {
-            # Each transcript is associated with a gene name, and has a
-            # hash value equal to its length
-            my $geneName = $1;
-            $seqHash{$geneName}{$seq->display_id()} = $seq;
+# longestFromGenes.pl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
+
+
+my %seqHash;
+my $seqIn1 = Bio::SeqIO->new(-file => "mmGRCm38.cdna.200bpPlus.fa",
+                             -format => "fasta");
+my $seqOut = Bio::SeqIO->new(-file => ">mmGRCm38.cdna.longestFromGenes.fa",
+                             -format => "fasta");
+
+while (my $seq = $seqIn1->next_seq()) {
+    if ($seq->desc() =~ /.*gene\:(\S+)\s/) {
+        # Each transcript is associated with a gene name, and has a
+        # hash value equal to its length
+        my $geneName = $1;
+        $seqHash{$geneName}{$seq->display_id()} = $seq;
+    }
+}
+
+foreach my $gene (sort keys %seqHash) {
+    my $longestID;
+    my $longestLength = 0;
+    foreach my $transcript (sort keys %{$seqHash{$gene}}) {
+        if ($seqHash{$gene}{$transcript}->length() > $longestLength) {
+            $longestID = $transcript;
+            $longestLength = $seqHash{$gene}{$transcript}->length();
         }
     }
-    
-    foreach my $gene (sort keys %seqHash) {
-        my $longestID;
-        my $longestLength = 0;
-        foreach my $transcript (sort keys %{$seqHash{$gene}}) {
-            if ($seqHash{$gene}{$transcript}->length() > $longestLength) {
-                $longestID = $transcript;
-                $longestLength = $seqHash{$gene}{$transcript}->length();
-            }
-        }
-        $seqOut->write_seq($seqHash{$gene}{$longestID})
-    }
-    
+    $seqOut->write_seq($seqHash{$gene}{$longestID})
+}
+```
 
 
 This should get the list down to 30,722, and the average length should go up (it was 1,873 bp before).
@@ -150,29 +150,29 @@ Contigs > 1kb:  20,279
 
 Looking good! I think 30,722 transcripts is still a little high though, so I will subset the dataset down to 10,000 transcripts randomly.
 
+```perl
+use List::Util qw/shuffle/;
 
-    use List::Util qw/shuffle/;
-    
-    #random10k.pl
-    
-    my $seqIn = Bio::SeqIO->new(-file => "mmGRCm38.cdna.longestFromGenes.fa",
-                                -format => "fasta");
-    my $seqOut = Bio::SeqIO->new(-file => ">mmGRCm38.cdna.rand10kLongest.fa",
-                                -format => "fasta");
-    
-    my @seqArray;
-    while (my $seq = $seqIn->next_seq()) {
-        push(@seqArray, $seq);
-    }
-    
-    my @shuffledSeqs = shuffle(@seqArray);
-    
-    my $counter = 0;
-    while ($counter < 10000) {
-        $seqOut->write_seq($shuffledSeqs[$counter]);
-        $counter++;
-    }
+#random10k.pl
 
+my $seqIn = Bio::SeqIO->new(-file => "mmGRCm38.cdna.longestFromGenes.fa",
+                            -format => "fasta");
+my $seqOut = Bio::SeqIO->new(-file => ">mmGRCm38.cdna.rand10kLongest.fa",
+                            -format => "fasta");
+
+my @seqArray;
+while (my $seq = $seqIn->next_seq()) {
+    push(@seqArray, $seq);
+}
+
+my @shuffledSeqs = shuffle(@seqArray);
+
+my $counter = 0;
+while ($counter < 10000) {
+    $seqOut->write_seq($shuffledSeqs[$counter]);
+    $counter++;
+}
+```
 
 That should give us 10,000 transcripts from 10,000 distinct genes scattered throughout the mouse genome.
 
@@ -292,40 +292,40 @@ The blastx'ing will also take a few hours.
 
 After the blastx is done, we'll parse the blastx results to pull out all the protein sequences that matched and store them into a new file for exonerate protein2genome mapping:
 
+```perl
+#!/usr/bin/perl
 
-    #!/usr/bin/perl
+# pullOutMatchingProteins.pl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
+use Bio::SearchIO;
+
+my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
+
+foreach my $species (@speciesArray) {
+    my $proteinFasta = $species . ".pep.all.fa";
     
-    # pullOutMatchingProteins.pl
-    
-    use strict;
-    use warnings;
-    use Bio::SeqIO;
-    use Bio::SearchIO;
-    
-    my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
-    
-    foreach my $species (@speciesArray) {
-        my $proteinFasta = $species . ".pep.all.fa";
-        
-        my %protHash;
-        my $seqIn = Bio::SeqIO->new(-file => $proteinFasta,
-                                    -format => 'fasta');
-        while (my $seq = $seqIn->next_seq()) {
-            $protHash{$seq->display_id()} = $seq;
-        }
-        
-        my $proteinOut = $species . ".pep.matching.fa";
-        my $seqOut = Bio::SeqIO->new(-file => ">$proteinOut",
-                                     -format => 'fasta');
-        
-        my $blastResults = $species . ".pep.all.fa.proteinMatches";
-        open(my $blastFH, "<", $blastResults) or die "Couldn't open $blastResults for reading: $!\n";
-        while (my $line = <$blastFH>) {
-            my @fields = split(/\t/, $line);
-            $seqOut->write_seq($protHash{$fields[1]});
-        }
+    my %protHash;
+    my $seqIn = Bio::SeqIO->new(-file => $proteinFasta,
+                                -format => 'fasta');
+    while (my $seq = $seqIn->next_seq()) {
+        $protHash{$seq->display_id()} = $seq;
     }
-
+    
+    my $proteinOut = $species . ".pep.matching.fa";
+    my $seqOut = Bio::SeqIO->new(-file => ">$proteinOut",
+                                 -format => 'fasta');
+    
+    my $blastResults = $species . ".pep.all.fa.proteinMatches";
+    open(my $blastFH, "<", $blastResults) or die "Couldn't open $blastResults for reading: $!\n";
+    while (my $line = <$blastFH>) {
+        my @fields = split(/\t/, $line);
+        $seqOut->write_seq($protHash{$fields[1]});
+    }
+}
+```
 
 Now we'll set these aside:
 
@@ -338,114 +338,114 @@ Exonerate protein2genome is very slow unless you change some settings around, an
 
 So we're first gonna need to separate the protein fasta files into new files, one sequence per file:
 
+```perl
+#!/usr/bin/perl
 
-    #!/usr/bin/perl
-    
-    # separateProteinsIntoIndividuals.pl
-    
-    use strict;
-    use warnings;
-    use Bio::SeqIO;
-    use Bio::SearchIO;
-    
-    my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
-    
-    foreach my $species (@speciesArray) {
-        # We'll have a different folder for each species
-        unless (-d $species) {
-            mkdir $species;
-        }
-        chdir $species;
-        
-        my $seqsFile = "../" . $species . ".pep.matching.fa";
-    
-        my $seqIn = Bio::SeqIO->new(-file => $seqsFile,
-                                    -format => 'fasta');
-        
-        my $counter = 0;
-        while (my $seq = $seqIn->next_seq()) {
-            $counter++;
-            my $seqOutName = $seq->display_id() . ".pep.fasta";
-            my $seqOut = Bio::SeqIO->new(-file => ">$seqOutName",
-                                         -format => 'fasta');
-            
-            $seqOut->write_seq($seq);
-            
-        }
-        print $counter . " total records processed\n";
-        chdir "..";
+# separateProteinsIntoIndividuals.pl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
+use Bio::SearchIO;
+
+my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
+
+foreach my $species (@speciesArray) {
+    # We'll have a different folder for each species
+    unless (-d $species) {
+        mkdir $species;
     }
+    chdir $species;
+    
+    my $seqsFile = "../" . $species . ".pep.matching.fa";
 
+    my $seqIn = Bio::SeqIO->new(-file => $seqsFile,
+                                -format => 'fasta');
+    
+    my $counter = 0;
+    while (my $seq = $seqIn->next_seq()) {
+        $counter++;
+        my $seqOutName = $seq->display_id() . ".pep.fasta";
+        my $seqOut = Bio::SeqIO->new(-file => ">$seqOutName",
+                                     -format => 'fasta');
+        
+        $seqOut->write_seq($seq);
+        
+    }
+    print $counter . " total records processed\n";
+    chdir "..";
+}
+```
 
 Note that some mouse transcripts might have selected the same genes from the reference set as others for the best blastx hit. This means that there should be fewer actual peptide fastas than query sequences that had positive matches in the blastx search.
 
 Now let's loop through all those sequences and align them to their proper genomes. The sending multiple queries to a single exonerate-server tends to make things segfault, so instead we'll instantiate exonerate-servers so that each thread gets its own.
 
 
+```perl
+#!/usr/bin/perl
 
-    #!/usr/bin/perl
+# exonerateP2G.pl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
+use Bio::SearchIO;
+use Parallel::ForkManager;
+
+my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
+
+
+my $portCounter = 12886; # We'll start on port 12887 and go up 29 more
+
+foreach my $species (@speciesArray) {
+    my $genomeFile = $species . ".dna.toplevel.trans.esi";
     
-    # exonerateP2G.pl
+    # We'll use a total of 15 possible threads for the forkmanager, because
+    # each thread will initiate two processes--the exonerate server and the 
+    # exonerate clients. We want to use about 30 CPUs total, so set this
+    # to 15.
+    my $forkManager = Parallel::ForkManager->new(15);
     
-    use strict;
-    use warnings;
-    use Bio::SeqIO;
-    use Bio::SearchIO;
-    use Parallel::ForkManager;
-    
-    my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
-    
-    
-    my $portCounter = 12886; # We'll start on port 12887 and go up 29 more
-    
-    foreach my $species (@speciesArray) {
-        my $genomeFile = $species . ".dna.toplevel.trans.esi";
-        
-        # We'll use a total of 15 possible threads for the forkmanager, because
-        # each thread will initiate two processes--the exonerate server and the 
-        # exonerate clients. We want to use about 30 CPUs total, so set this
-        # to 15.
-        my $forkManager = Parallel::ForkManager->new(15);
-        
-        foreach my $thread (0..14) {
-            $portCounter++;
-            $forkManager->start and next;
-            chdir("/home/evan/spliceFinder/genomes/");
-            system("exonerate-server --port $portCounter $genomeFile &");
-            sleep(30);
-            chdir("proteins/matchingProteins/");
-            chdir $species;
-            unless(-d "exonerate") {
-                mkdir "exonerate";
-            }
-    
-            opendir(my $dirFH, "./");
-            my @files = readdir($dirFH);
-            closedir($dirFH);
-    
-            my @fastaFiles;
-            foreach my $file (@files) {
-                if ($file =~ /.fasta/) {
-                    push(@fastaFiles, $file);
-                }
-            }
-    
-            my $proteinsPerThread = scalar(@fastaFiles) / 15; # Decide how many proteins to provide to each thread
-    
-            my $beginning = $thread * $proteinsPerThread;
-            my $end = ($thread+1) * $proteinsPerThread;
-            for (my $fileIndex=$beginning; $fileIndex < $end; $fileIndex++) {
-                my $outFileName = "exonerate/" . $fastaFiles[$fileIndex] . ".p2g.exonerate";
-                system("exonerate $fastaFiles[$fileIndex] localhost:$portCounter --querytype protein --targettype dna --model p2g --bestn 1 --dnawordlen 12 --fsmmemory 4096 --hspfilter 50 --geneseed 250 > $outFileName");
-            }
-            $forkManager->finish;
+    foreach my $thread (0..14) {
+        $portCounter++;
+        $forkManager->start and next;
+        chdir("/home/evan/spliceFinder/genomes/");
+        system("exonerate-server --port $portCounter $genomeFile &");
+        sleep(30);
+        chdir("proteins/matchingProteins/");
+        chdir $species;
+        unless(-d "exonerate") {
+            mkdir "exonerate";
         }
-        $forkManager->wait_all_children;
-        sleep(120);
-        system("pkill -f exonerate-server");
-        sleep(120);
-    }
 
+        opendir(my $dirFH, "./");
+        my @files = readdir($dirFH);
+        closedir($dirFH);
+
+        my @fastaFiles;
+        foreach my $file (@files) {
+            if ($file =~ /.fasta/) {
+                push(@fastaFiles, $file);
+            }
+        }
+
+        my $proteinsPerThread = scalar(@fastaFiles) / 15; # Decide how many proteins to provide to each thread
+
+        my $beginning = $thread * $proteinsPerThread;
+        my $end = ($thread+1) * $proteinsPerThread;
+        for (my $fileIndex=$beginning; $fileIndex < $end; $fileIndex++) {
+            my $outFileName = "exonerate/" . $fastaFiles[$fileIndex] . ".p2g.exonerate";
+            system("exonerate $fastaFiles[$fileIndex] localhost:$portCounter --querytype protein --targettype dna --model p2g --bestn 1 --dnawordlen 12 --fsmmemory 4096 --hspfilter 50 --geneseed 250 > $outFileName");
+        }
+        $forkManager->finish;
+    }
+    $forkManager->wait_all_children;
+    sleep(120);
+    system("pkill -f exonerate-server");
+    sleep(120);
+}
+```
 
 This takes several hours to a day to run all these, assuming all goes well and you have > 30 cores to work with.
 
@@ -455,29 +455,29 @@ Let's say this exon sequence aligns at base pairs 10-537 in the mouse EST. We wo
 
 I'll present this all in heavily-commented code below.
 
+```perl
+#!/usr/bin/perl
 
-    #!/usr/bin/perl
+# harvestExonsAndAlign.pl
+
+use strict;
+use warnings;
+use Bio::SearchIO; # <= We'll use this to parse the exonerate reports
+use Bio::SeqIO;
+
+
+# We'll deal with all the different reference genomes one-by-one in a loop
+my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
+foreach my $species (@speciesArray) {
+    chdir($species);
     
-    # harvestExonsAndAlign.pl
-    
-    use strict;
-    use warnings;
-    use Bio::SearchIO; # <= We'll use this to parse the exonerate reports
-    use Bio::SeqIO;
     
     
-    # We'll deal with all the different reference genomes one-by-one in a loop
-    my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
-    foreach my $species (@speciesArray) {
-        chdir($species);
-        
-        
-        
-        
-        
-        
-    }
     
+    
+    
+}
+```   
     
     
     
