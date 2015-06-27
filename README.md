@@ -75,7 +75,7 @@ while (my $seq = $seqIn->next_seq()) {
 After running, we have:
 
 ```text
-get_fasta_lengths.py --input mmGRCm38.cdna.200bpPlus.fa 
+get_fasta_lengths.py --input mmGRCm38.cdna.200bpPlus.fa
 Reads:          90,060
 Bp:             168,702,266
 Avg. len:       1,873.22080835
@@ -137,7 +137,7 @@ foreach my $gene (sort keys %seqHash) {
 This should get the list down to 30,722, and the average length should go up (it was 1,873 bp before).
 
 ```text
-get_fasta_lengths.py --input mmGRCm38.cdna.longestFromGenes.fa 
+get_fasta_lengths.py --input mmGRCm38.cdna.longestFromGenes.fa
 Reads:          30,722
 Bp:             73,817,860
 Avg. len:       2,402.76869995
@@ -221,7 +221,7 @@ wget ftp://ftp.ensembl.org/pub/release-80/fasta/takifugu_rubripes/dna/Takifugu_r
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/petromyzon_marinus/dna/Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.fa.gz
 wget ftp://ftp.ensemblgenomes.org/pub/metazoa/release-26/fasta/strongylocentrotus_purpuratus/dna/Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.fa.gz
 
-gunzip "*.gz" 
+gunzip "*.gz"
 ```
 
 We'll also need the full collection of protein sequences from these organisms:
@@ -306,18 +306,18 @@ my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromy
 
 foreach my $species (@speciesArray) {
     my $proteinFasta = $species . ".pep.all.fa";
-    
+
     my %protHash;
     my $seqIn = Bio::SeqIO->new(-file => $proteinFasta,
                                 -format => 'fasta');
     while (my $seq = $seqIn->next_seq()) {
         $protHash{$seq->display_id()} = $seq;
     }
-    
+
     my $proteinOut = $species . ".pep.matching.fa";
     my $seqOut = Bio::SeqIO->new(-file => ">$proteinOut",
                                  -format => 'fasta');
-    
+
     my $blastResults = $species . ".pep.all.fa.proteinMatches";
     open(my $blastFH, "<", $blastResults) or die "Couldn't open $blastResults for reading: $!\n";
     while (my $line = <$blastFH>) {
@@ -356,21 +356,21 @@ foreach my $species (@speciesArray) {
         mkdir $species;
     }
     chdir $species;
-    
+
     my $seqsFile = "../" . $species . ".pep.matching.fa";
 
     my $seqIn = Bio::SeqIO->new(-file => $seqsFile,
                                 -format => 'fasta');
-    
+
     my $counter = 0;
     while (my $seq = $seqIn->next_seq()) {
         $counter++;
         my $seqOutName = $seq->display_id() . ".pep.fasta";
         my $seqOut = Bio::SeqIO->new(-file => ">$seqOutName",
                                      -format => 'fasta');
-        
+
         $seqOut->write_seq($seq);
-        
+
     }
     print $counter . " total records processed\n";
     chdir "..";
@@ -400,13 +400,13 @@ my $portCounter = 12886; # We'll start on port 12887 and go up 29 more
 
 foreach my $species (@speciesArray) {
     my $genomeFile = $species . ".dna.toplevel.trans.esi";
-    
+
     # We'll use a total of 15 possible threads for the forkmanager, because
-    # each thread will initiate two processes--the exonerate server and the 
+    # each thread will initiate two processes--the exonerate server and the
     # exonerate clients. We want to use about 30 CPUs total, so set this
     # to 15.
     my $forkManager = Parallel::ForkManager->new(15);
-    
+
     foreach my $thread (0..14) {
         $portCounter++;
         $forkManager->start and next;
@@ -449,7 +449,7 @@ foreach my $species (@speciesArray) {
 
 This takes several hours to a day to run all these, assuming all goes well and you have > 30 cores to work with.
 
-After this comes one of the trickier parts. We'll process all of these exonerate files to harvest the putative contiguous genomic region sequences and align to the proteins. For instance, rat protein ENSRNOP00000046335 was mapped to the rat chromosome 7 between base pairs 143497108 and 143489162. Additionally, exonerate uncovered 8 introns spread throughout the alignment. The first intron starts at about bp 143496581 and ends at bp 143495791. So, we'll designate the first intron as running from 143496581-143497108. We want to pull the rat genomic DNA sequence from 143496581-143497108 and align it to the original mouse EST sequence. 
+After this comes one of the trickier parts. We'll process all of these exonerate files to harvest the putative contiguous genomic region sequences and align to the proteins. For instance, rat protein ENSRNOP00000046335 was mapped to the rat chromosome 7 between base pairs 143497108 and 143489162. Additionally, exonerate uncovered 8 introns spread throughout the alignment. The first intron starts at about bp 143496581 and ends at bp 143495791. So, we'll designate the first intron as running from 143496581-143497108. We want to pull the rat genomic DNA sequence from 143496581-143497108 and align it to the original mouse EST sequence.
 
 Let's say this exon sequence aligns at base pairs 10-537 in the mouse EST. We would then code this as rat-inferred splice sites before base 10 and after 537 in the mouse EST. We'll gather all such inferred splice sites for each EST, keeping track of which ones come from which species.
 
@@ -470,17 +470,6 @@ use Bio::SeqIO;
 my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
 foreach my $species (@speciesArray) {
     chdir($species);
-    
-    
-    
-    
-    
-    
-}
-```   
-    
-    
-    
-    
-    
 
+}
+```
