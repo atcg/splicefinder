@@ -12,8 +12,8 @@ _________________
 Connect to the server, navigate to the proper folder, and download data in bash:
 
 ```bash
-ssh maven
-cd /mnt/Data1/spliceFinder
+ssh rover
+cd /mnt/Data3/arrayDesignPaper
 mkdir ensembl
 cd ensembl
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/mus_musculus/cdna/Mus_musculus.GRCm38.cdna.all.fa.gz
@@ -221,11 +221,16 @@ wget ftp://ftp.ensembl.org/pub/release-80/fasta/takifugu_rubripes/dna/Takifugu_r
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/petromyzon_marinus/dna/Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.fa.gz
 wget ftp://ftp.ensemblgenomes.org/pub/metazoa/release-26/fasta/strongylocentrotus_purpuratus/dna/Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.fa.gz
 
-gunzip "*.gz"
+gunzip *.gz*
+```
 ```
 
 We'll also need the full collection of protein sequences from these organisms:
 ```bash
+cd /mnt/Data3/arrayDesignPaper/ensembl/genomes
+
+#!/bin/bash
+#downloadProteins.bash
 mkdir proteins
 cd proteins
 
@@ -242,11 +247,15 @@ wget ftp://ftp.ensembl.org/pub/release-80/fasta/takifugu_rubripes/pep/Takifugu_r
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/petromyzon_marinus/pep/Petromyzon_marinus.Pmarinus_7.0.pep.all.fa.gz
 wget ftp://ftp.ensemblgenomes.org/pub/metazoa/release-26/fasta/strongylocentrotus_purpuratus/pep/Strongylocentrotus_purpuratus.GCA_000002235.2.26.pep.all.fa.gz
 
-gunzip "*"
+gunzip *
 ```
 
 We're going to use exonerate protein2genome to map all of these proteins to their respective genomes.
 ```bash
+cd /mnt/Data3/arrayDesignPaper/ensembl/genomes
+
+#!/bin/bash
+#prepareExonerate.bash
 cd ../
 
 fasta2esd --softmask no Loxodonta_africana.loxAfr3.dna.toplevel.fa Loxodonta_africana.loxAfr3.dna.toplevel.esd
@@ -279,13 +288,13 @@ esd2esi Rattus_norvegicus.Rnor_6.0.dna.toplevel.esd Rattus_norvegicus.Rnor_6.0.d
 The above will take several hours. We want to map the orthologous proteins from each species to their own reference genomes. So, we will need to find the orthologous proteins from each species. First we'll make blast databases from each protein set:
 ```bash
 cd proteins
-for i in "*.pep.all.fa"; do makeblastdb -in $i -dbtype prot; done
+for i in *.pep.all.fa; do makeblastdb -in $i -dbtype prot; done
 ```
 
 Now we'll iterate through each of the protein sets and blastx the mouse cDNAs to each, only outputting the best match:
 
 ```bash
-for i in "*.pep.all.fa"; do OUTFILE=$i".proteinMatches"; blastx -db $i -query ../../mmGRCm38.cdna.rand10kLongest.fa -outfmt 6 -max_target_seqs 1 -num_threads 10 -out $OUTFILE ; done
+for i in *.pep.all.fa; do OUTFILE=$i".proteinMatches"; blastx -db $i -query ../../mmGRCm38.cdna.rand10kLongest.fa -outfmt 6 -max_target_seqs 1 -num_threads 10 -out $OUTFILE ; done
 ```
 
 The blastx'ing will also take a few hours.
@@ -399,18 +408,23 @@ my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromy
 my $portCounter = 12886; # We'll start on port 12887 and go up 29 more
 
 foreach my $species (@speciesArray) {
-    my $genomeFile = $species . ".dna.toplevel.trans.esi";
+    my $genomeFile;
+    if ($species eq "Homo_sapiens.GRCh38") {
+        $genomeFile = "Homo_sapiens.GRCh38.dna.primary_assembly.trans.esi";
+    } else {
+        my $genomeFile = $species . ".dna.toplevel.trans.esi";
+    }
 
-    # We'll use a total of 15 possible threads for the forkmanager, because
+    # We'll use a total of 4 possible threads for the forkmanager, because
     # each thread will initiate two processes--the exonerate server and the
-    # exonerate clients. We want to use about 30 CPUs total, so set this
-    # to 15.
-    my $forkManager = Parallel::ForkManager->new(15);
+    # exonerate clients. We want to use about 8 CPUs total, so set this
+    # to 4.
+    my $forkManager = Parallel::ForkManager->new(4);
 
-    foreach my $thread (0..14) {
+    foreach my $thread (0..3) {
         $portCounter++;
         $forkManager->start and next;
-        chdir("/home/evan/spliceFinder/genomes/");
+        #chdir("/home/evan/spliceFinder/genomes/");
         system("exonerate-server --port $portCounter $genomeFile &");
         sleep(30);
         chdir("proteins/matchingProteins/");
@@ -430,7 +444,7 @@ foreach my $species (@speciesArray) {
             }
         }
 
-        my $proteinsPerThread = scalar(@fastaFiles) / 15; # Decide how many proteins to provide to each thread
+        my $proteinsPerThread = scalar(@fastaFiles) / 4; # Decide how many proteins to provide to each thread
 
         my $beginning = $thread * $proteinsPerThread;
         my $end = ($thread+1) * $proteinsPerThread;
@@ -458,7 +472,7 @@ I'll present this all in heavily-commented code below.
 ```perl
 #!/usr/bin/perl
 
-# harvestExonsAndAlign.pl
+# harvestSplicePositions.pl
 
 use strict;
 use warnings;
@@ -468,8 +482,88 @@ use Bio::SeqIO;
 
 # We'll deal with all the different reference genomes one-by-one in a loop
 my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
-foreach my $species (@speciesArray) {
-    chdir($species);
 
+# All of the data about the splice positions will be printed into an intermediate
+# output file for future use and inspection
+open(my $intronOutFile, ">", "putativeExons.txt");
+# The next line prints a header to the output file
+print $intronOutFile "Species\tProtein\tHitScaffold\tPutativeGenomicExons\n";
+
+
+foreach my $species (@speciesArray) {
+
+
+    # First we'll put the genome scaffolds into a hash:
+    my %genomeHash;
+    my $genomeFile;
+    if ($species eq "Homo_sapiens.GRCh38") {
+        $genomeFile = "Homo_sapiens.GRCh38.dna.primary_assembly.fa";
+    } else {
+        my $genomeFile = $species . ".dna.toplevel.fa";
+    }
+    print $genomeFile . "\n";
+    my $genomeIn = Bio::SeqIO->new(-file   => $genomeFile,
+                                   -format => 'fasta');
+    while (my $seq = $genomeIn->next_seq()) {
+        $genomeHash{$seq->display_id()} = $seq;
+    }
+    
+    # Now we'll go through the exonerate files.
+    # Each reference genome has a collection of proteins associated with it, and each of these proteins have
+    # been mapped to its respective reference genome. We'll iterate through each one of these exonerate output
+    # files:
+    my $speciesFolder = "proteins/matchingProteins/$species/exonerate";
+    chdir($speciesFolder);
+    opendir(my $dirFH, "./");
+    my @exonerateFiles = readdir($dirFH);
+    closedir($dirFH);
+    
+    foreach my $exonerateFile (@exonerateFiles) {
+        my $exonIO = Bio::SearchIO->new(-file => $exonerateFile,
+                                         -format => 'exonerate');
+        while (my $result = $exonIO->next_result()) {
+            print $intronOutFile $species . "\t" . $result->query_name();
+            while (my $hit = $result->next_hit()) {
+                print $intronOutFile "\t" . $hit->name() . "\t";
+                my $numHSPS = $hit->num_hsps();
+                my $hspCounter = 0;
+                while (my $hsp = $hit->next_hsp()) {
+                    $hspCounter++;
+                    #print $intronOutFile $hsp->start('subject') . ":";
+                    #print $intronOutFile $hsp->end('subject');
+                    
+                    # Note that filtering this way, using the BioPerl-parsed HSP start and stop
+                    # base locations from an exonerate file, is a little conservative. If the
+                    # bases coding for a single amino acid are split by an intron, then it
+                    # chops these bases off and defines the start site as the terminal end of
+                    # the last amino acid
+                    print $intronOutFile $genomeHash{$hit->name()}->subseq($hsp->start('subject'), $hsp->end('subject'));
+                    unless ($hspCounter == $numHSPS) {
+                        print $intronOutFile ",";
+                    }
+                }  
+            }
+            print $intronOutFile "\n";
+        }
+    }
+    chdir("../../../..");
 }
 ```
+
+This gets us pretty close to where we want to be. Here's an excerpt from what the file we created ("intronPositions.txt") looks like:
+```text
+Species	Protein	HitScaffold	PutativeGenomicExons
+Strongylocentrotus_purpuratus.GCA_000002235.2.26	SPU_005493-tr	Scaffold459	CATCTCTTTGCGGAGCAAGGCCAAGGCAGCATCTAGATTTCCTCTTGGTATTTCAATGCGTTTCCTTTTTTTCCTTCCTCCACTCTTATGGACATGGCTTGGAGAAAATCCAGCAGTAAGACTGTCTTGTATATTCGTTTGGTGGGCTAAAATTCTACCTGTTTCGCGCCAAGTTCCACTGTTAGCATTTAGAAGTCCACTCAAACTTTTTGGTAACGCTGGCAGTCCTGGGAGTTTCATGTTTGAACTGGAATCCAT,GTCTTCTAGTAGTTCTTCATCAAGGGCTGATAGATGGCTGAGCTGAGAATCGTCGGCGTCCAGATCTAAAGAGCTATCAACTACCTTCTCCATATCAGACTTATAATCTTGGATGGATTCATGAAGAGAATAAAGCTCACTTAGAAGAGACATATCCAGCTGACGTAGACCAAC
+Strongylocentrotus_purpuratus.GCA_000002235.2.26	SPU_003577-tr	Scaffold292	GTCATTATGTATGAAACGCTTTAGCGACCTTGGTACTAACGTGTCTCCATTTTCAGTTCCCTCTAATGTTGAGTACTCTTCACGGTTGCACACTGTCAGTCTGATATCGTTGAGGATTATGGAAGCAGCCAT,TGCCAATGCACACACACAATGGCGTGCTATACCTTTTATGGACAGGGTAAACGTATCCATTGGTTTAATTTCAGTTATGAGTTTATCTCCGTTCATATTGATGATGGGACGGCACGGGTTACTCTCCTTTTGTAAAACACCACCAGCCTTCCAGTATCCGAATACGTC,TCTGTGACACCTCGACCCTGAAAATCCGTCTGCACATGAACAAGAAGACTCCCCCGATAAGGGTACACACGTTCCGTTGTTTTCACAAGGGCTGGGGTTGCAAACTGTATC,TGTGCAGCACTTTACAGCGATGTGATATATGATACTCGTGTTTCGAAGCCTGAGTGTAGAGTACCAGCATTCCGTGAATGTGGTGTAGTGAAGCGGGCAATGGATTTCTCCAATCTCCACCAAAGCTTCCGTAGTTGGGAACATGTCACCACTCATCGTAGCAATGGCGCCACCGAAGCCCAAATCTTGACAAACCATGTGAGACATGGACATTGACCACGAGTGGCTCATGTACGCTATCGTATATGGATCATAATTGTTGCGAAACCCCACTCGTCCTTCACCGCTATGGTTGCCACCGTGTAGACTCACACTCAACAGGTAACG,CATTTCAGTTCCTTCGTCCACGTCAGTATAGATCGTCAAATCAGTTTCCTCAACACCATACGAGATCTTAAAAGAAGTCACCCACTTATCTGATCCGCCCTGTGTGACGATAGCAGTGATCATGTGATACGCCCTTAGATGGATCTGGATATAGGGTTCCGTCTGATCGTTCAAGGCAGCCATCCATGACGTCATGGCATTGAGACGGGCCTCGTGACCACACGGTGACGTAGTCGCACATGATGACGTAGTGATATCGGCGTTTAAAATATCGCCGGACTCCATTCCTAGTGGACGTCCGGATGGAGCACATTGTGA,CACGCGATCAGGTAGTGGTCCATAGCCTATGAGCTCAAATCGCATGCTGACAGTGCTGTTACTTGACTTGGGTCTTATACTAATGTACTTGGCCAGGATGTATGGAGTCAAAGATGTCGTCACGGATGTAGTATTATCGTAATTACCGGGAAAAAC,CTGCAGAAAAGGCGTGGAGTCTGTATTAAGTGGTATCCAGCCACCACCGGTAACACTGTTCAATCTAGCTGTATGAGATGGGTCACTGGGTTCGCTGGTGTGCGCTGTCAGTGATTCGTCGCCAATGTCACCATTCTCCACCCCTAGCGGAATCCCCTTATCCAAGCACGTTCCGTCTCGCTTGTGTATGTC,CTTTCTGGATCCGCATTCGTCCTCGTATAAATAAATCCATCCCTGATCAGCTTCATATGCTAGCGTGATCGACGTCGTCCATTGGTCAAGAGTACGATGACCTTGAGTTATCACACCGGTGACCAGATGTATTTCTGTAAGATCCAC,ACCTACAACATGACCTAAAATTTCACATCGAAGTGTGATCCTGTTCATCCATGATTGTGGAGAAAAGAGAACCTTTCTTGCCATCACAGGCTCAGCAAGGCGAATAGTTACAGGTGTGTTGTTGTCGAAGTTAGTTGGATAAAT
+```
+
+As you can see, we get an output file with four columns: the species/reference genome, the identifier of the protein we're mapping, the scaffold of the genome where we found a match, and a comma-separated list of genomic sequences of the putative exons which have been pulled directly from the reference genome using the coordinates given by exonerate protein2genome.
+
+As noted in the script above, the boundaries of these putative exons are slightly conservative: if an intron splice site is inferred in the middle of an amino acid exonerate defines the edges of the exon as the first (or last) base of the next exon. For instance, if the genomic string of a match looks like this (where intron sequence is denoted with ...'s): CTT{AG}gt...ag{A}TTT, where the CTT codes for Leu, and {AG}+{A} codes for Arg, and the TTT codes for Phe, then the CTT in the first chunk forms the terminal end of one exon and the TTT in the second chunk forms the beginning end of the next exon. The end result of this is that some exons have one or two bases clipped from one or both ends, which is conservative if the objective is to designate contiguous stretches of sequence.
+
+
+
+
+
+
+
