@@ -86,7 +86,7 @@ Median len:     1,098.0
 Contigs > 1kb:  47,261
 ```
 
-That didn't very many, so we'll have to reduce further. You'll notice in the fasta headers that there is a gene name in the fourth column. Let's find out how many unique gene names there are total:
+That didn't nuke very many, so we'll have to reduce further. You'll notice in the fasta headers that there is a gene name in the fourth column. Let's find out how many unique gene names there are total:
 
 ```text
 grep "gene:" mmGRCm38.cdna.200bpPlus.fa | awk '{print $4}' | uniq -c | wc -l
@@ -343,6 +343,42 @@ mkdir matchingProteins
 mv "*.pep.matching.fa" matchingProteins/
 ```
 
+We also need to create a map of which proteins match the query transcripts from
+the different reference genomes. We can do that by parsing the blast results with
+this script, which outputs a file called "blastMap.txt" with that info:
+
+```perl
+#!/usr/bin/perl
+
+# pullOutMatchingProteins.pl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
+use Bio::SearchIO;
+
+my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
+
+open(my $outFH, ">", "blastMap.txt");
+my %resultsHash;
+foreach my $species (@speciesArray) {
+    my $blastResults = $species . ".pep.all.fa.proteinMatches";
+    open(my $blastFH, "<", $blastResults) or die "Couldn't open $blastResults for reading: $!\n";
+    my $result = " ";
+    while (my $line = <$blastFH>) {
+        my @fields = split(/\t/, $line);
+        unless ($result eq "$species\t$fields[0]\t$fields[1]\n") {
+    	    print $outFH $species . "\t" . $fields[0] . "\t" . $fields[1] . "\n";
+    	    $result = "$species\t$fields[0]\t$fields[1]\n";
+    	}
+    }
+}
+```
+
+
+
+
+
 Exonerate protein2genome is very slow unless you change some settings around, and it seems to run faster when you separate each sequence into its own file. Using only one sequence per run also has the benefit of showing you where you left off if exonerate segfaults.
 
 So we're first gonna need to separate the protein fasta files into new files, one sequence per file:
@@ -499,7 +535,7 @@ foreach my $species (@speciesArray) {
     if ($species eq "Homo_sapiens.GRCh38") {
         $genomeFile = "Homo_sapiens.GRCh38.dna.primary_assembly.fa";
     } else {
-        my $genomeFile = $species . ".dna.toplevel.fa";
+        $genomeFile = $species . ".dna.toplevel.fa";
     }
     print $genomeFile . "\n";
     my $genomeIn = Bio::SeqIO->new(-file   => $genomeFile,
@@ -557,12 +593,128 @@ Strongylocentrotus_purpuratus.GCA_000002235.2.26	SPU_005493-tr	Scaffold459	CATCT
 Strongylocentrotus_purpuratus.GCA_000002235.2.26	SPU_003577-tr	Scaffold292	GTCATTATGTATGAAACGCTTTAGCGACCTTGGTACTAACGTGTCTCCATTTTCAGTTCCCTCTAATGTTGAGTACTCTTCACGGTTGCACACTGTCAGTCTGATATCGTTGAGGATTATGGAAGCAGCCAT,TGCCAATGCACACACACAATGGCGTGCTATACCTTTTATGGACAGGGTAAACGTATCCATTGGTTTAATTTCAGTTATGAGTTTATCTCCGTTCATATTGATGATGGGACGGCACGGGTTACTCTCCTTTTGTAAAACACCACCAGCCTTCCAGTATCCGAATACGTC,TCTGTGACACCTCGACCCTGAAAATCCGTCTGCACATGAACAAGAAGACTCCCCCGATAAGGGTACACACGTTCCGTTGTTTTCACAAGGGCTGGGGTTGCAAACTGTATC,TGTGCAGCACTTTACAGCGATGTGATATATGATACTCGTGTTTCGAAGCCTGAGTGTAGAGTACCAGCATTCCGTGAATGTGGTGTAGTGAAGCGGGCAATGGATTTCTCCAATCTCCACCAAAGCTTCCGTAGTTGGGAACATGTCACCACTCATCGTAGCAATGGCGCCACCGAAGCCCAAATCTTGACAAACCATGTGAGACATGGACATTGACCACGAGTGGCTCATGTACGCTATCGTATATGGATCATAATTGTTGCGAAACCCCACTCGTCCTTCACCGCTATGGTTGCCACCGTGTAGACTCACACTCAACAGGTAACG,CATTTCAGTTCCTTCGTCCACGTCAGTATAGATCGTCAAATCAGTTTCCTCAACACCATACGAGATCTTAAAAGAAGTCACCCACTTATCTGATCCGCCCTGTGTGACGATAGCAGTGATCATGTGATACGCCCTTAGATGGATCTGGATATAGGGTTCCGTCTGATCGTTCAAGGCAGCCATCCATGACGTCATGGCATTGAGACGGGCCTCGTGACCACACGGTGACGTAGTCGCACATGATGACGTAGTGATATCGGCGTTTAAAATATCGCCGGACTCCATTCCTAGTGGACGTCCGGATGGAGCACATTGTGA,CACGCGATCAGGTAGTGGTCCATAGCCTATGAGCTCAAATCGCATGCTGACAGTGCTGTTACTTGACTTGGGTCTTATACTAATGTACTTGGCCAGGATGTATGGAGTCAAAGATGTCGTCACGGATGTAGTATTATCGTAATTACCGGGAAAAAC,CTGCAGAAAAGGCGTGGAGTCTGTATTAAGTGGTATCCAGCCACCACCGGTAACACTGTTCAATCTAGCTGTATGAGATGGGTCACTGGGTTCGCTGGTGTGCGCTGTCAGTGATTCGTCGCCAATGTCACCATTCTCCACCCCTAGCGGAATCCCCTTATCCAAGCACGTTCCGTCTCGCTTGTGTATGTC,CTTTCTGGATCCGCATTCGTCCTCGTATAAATAAATCCATCCCTGATCAGCTTCATATGCTAGCGTGATCGACGTCGTCCATTGGTCAAGAGTACGATGACCTTGAGTTATCACACCGGTGACCAGATGTATTTCTGTAAGATCCAC,ACCTACAACATGACCTAAAATTTCACATCGAAGTGTGATCCTGTTCATCCATGATTGTGGAGAAAAGAGAACCTTTCTTGCCATCACAGGCTCAGCAAGGCGAATAGTTACAGGTGTGTTGTTGTCGAAGTTAGTTGGATAAAT
 ```
 
-As you can see, we get an output file with four columns: the species/reference genome, the identifier of the protein we're mapping, the scaffold of the genome where we found a match, and a comma-separated list of genomic sequences of the putative exons which have been pulled directly from the reference genome using the coordinates given by exonerate protein2genome.
+As you can see, we get an output file with four columns: the species/reference genome, the
+identifier of the protein we're mapping, the scaffold of the genome where we found a match, and a
+comma-separated list of genomic sequences of the putative exons which have been pulled directly
+from the reference genome using the coordinates given by exonerate protein2genome.
 
-As noted in the script above, the boundaries of these putative exons are slightly conservative: if an intron splice site is inferred in the middle of an amino acid exonerate defines the edges of the exon as the first (or last) base of the next exon. For instance, if the genomic string of a match looks like this (where intron sequence is denoted with ...'s): CTT{AG}gt...ag{A}TTT, where the CTT codes for Leu, and {AG}+{A} codes for Arg, and the TTT codes for Phe, then the CTT in the first chunk forms the terminal end of one exon and the TTT in the second chunk forms the beginning end of the next exon. The end result of this is that some exons have one or two bases clipped from one or both ends, which is conservative if the objective is to designate contiguous stretches of sequence.
+As noted in the script above, the boundaries of these putative exons are slightly conservative: if
+an intron splice site is inferred in the middle of an amino acid exonerate defines the edges of
+the exon as the first (or last) base of the next exon. For instance, if the genomic string of a
+match looks like this (where intron sequence is denoted with ...'s): CTT{AG}gt...ag{A}TTT, where
+the CTT codes for Leu, and {AG}+{A} codes for Arg, and the TTT codes for Phe, then the CTT in the
+first chunk forms the terminal end of one exon and the TTT in the second chunk forms the beginning
+end of the next exon. The end result of this is that some exons have one or two bases clipped from
+one or both ends, which is conservative if the objective is to designate contiguous stretches of
+sequence.
+
+Now we want to take those putative contiguous stretches of DNA in the fourth column of the output
+file and align them back to the original mRNA sequences that we started with (the sequenced
+transcriptome from our non-model species that we want to use to design capture targets, for
+instance). We'll do that with the following script:
+
+```perl
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
+use Data::Dumper;
+
+# We'll need to store the locations of all of our inferred splice sites:
+open(my $spliceSitesFile, ">", "inferredSpliceSites.txt");
 
 
+# We also need to have an index of all the original mRNA query sequences:
+my %mRNAhash;
+my $mRNAin = Bio::SeqIO -> new(-file => "../mmGRCm38.cdna.rand10kLongest.fa",
+                               -format => 'fasta');
+while (my $seq = $mRNAin->next_seq()) {
+    $mRNAhash{$seq->display_id()} = $seq;
+}
 
+
+# Finally, we need a map of which proteins from the different reference genomes
+# correspond to the mRNA query sequence. We created this earlier in a file called
+# blastMap.txt:
+my %blastMap;
+open(my $blastMapFH, "<", "/mnt/Data3/arrayDesignPaper/ensembl/genomes/proteins/blastMap.txt") or die "Couldn't open blastMap.txt: $!\n";
+while(my $line = <$blastMapFH>) {
+    chomp($line);
+    my @fields = split(/\t/, $line);
+    $blastMap{$fields[0]}{$fields[2]} = $fields[1]; # This equates to $blastMap{species}{speciesProteinName} = queryRNAname
+}
+
+
+# We'll be going line-by-line through the following file to process the putative exons
+open(my $exonsFile, "<", "putativeExons.txt");
+
+my $currentGenome; # We'll hold the current genome we're working on in a variable here
+                   # so that we don't have to load it into memory on every iteration, just
+                   # when we change genomes
+my %genomeHash;
+               
+while (my $line = <$exonsFile>) {
+    chomp($line);
+    next if ($line =~ /^Species\tProtein\tHitScaffold\tProteinIntronSites/); # Skip the header line
+    my @fields = split(/\t/, $line);
+    # $fields[0] is the species name, $fields[1] is the Protein ID, $fields[2] is
+    # the genomic sequence, and $fields[3] are the comma-delimited putative exons
+    
+    
+    ### Make sure we have the right genome indexed
+    if (!$currentGenome or $currentGenome ne $fields[0]) {
+        %genomeHash = (); # empty out the hash
+        my $genomeFile;
+        if ($fields[0] eq "Homo_sapiens.GRCh38") {
+           $genomeFile = "Homo_sapiens.GRCh38.dna.primary_assembly.fa";
+        } else {
+            $genomeFile = $fields[0] . ".dna.toplevel.fa";
+        }
+        my $genomeIn = Bio::SeqIO->new(-file   => $genomeFile,
+                                       -format => 'fasta');
+        while (my $seq = $genomeIn->next_seq()) {
+            $genomeHash{$seq->display_id()} = $seq;
+        }    
+    }
+    
+    
+    # Now let's pull out all of the strings that represent putative exons for that target
+    my @putativeRefExons = split(/,/, $fields[3]);
+
+    foreach my $putativeRefExon (@putativeRefExons) {
+        open(my $tempRefFasta, ">", "tempRefExon.fasta");
+        print $tempRefFasta ">tempRefExon\n";
+        print $tempRefFasta $putativeRefExon . "\n";
+        close($tempRefFasta);
+        
+        # We now have the sequence that we want in tempRefExon.fasta, which
+        # will be rewritten in every iteration of the loop. We want to align
+        # that to a single target transcript, which we'll pull from the blast map
+        open(my $tempMRNAfasta, ">", "tempMRNA.fasta");
+        print $tempMRNAfasta ">SEQUENCENAME\n" . $mRNAhash{$blastMap{$fields[0]}{$fields[1]}}->seq ."\n";
+        close($tempMRNAfasta);
+        
+        # Now align those two sequences:
+        system("exonerate -m est2genome -q tempRefExon.fasta -t tempMRNA.fasta");
+        
+        # Or maybe use the ungapped:trans? I used est2genome in the salamander array design
+        #system("exonerate -m ungapped:trans -q tempRefExon.fasta -t tempMRNA.fasta");
+        
+        # And now we'll process the output to define the splice sites
+        #my $exonIn = Bio::SearchIO->new(-file => "EXONERATEFILE",
+        #                                -format => 'fasta');
+        #...
+        
+        # print $spliceSitesFile $mRNAname . "\t" . COMMASEPARATEDSPLICESITES . "\n";
+        
+        
+        
+        # And finally we'll get rid of all those temporary files:
+        #unlink("tempMRNA.fasta", "tempRefExon.fasta");
+    }
+}
+```
 
 
 
