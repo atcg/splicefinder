@@ -13,12 +13,10 @@ Connect to the server, navigate to the proper folder, and download data in bash:
 
 ```bash
 ssh rover
-cd /mnt/Data3/arrayDesignPaper
+cd /mnt/Data3/arrayDesignPaper2
 mkdir ensembl
 cd ensembl
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/mus_musculus/cdna/Mus_musculus.GRCm38.cdna.all.fa.gz
-
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/mus_musculus/cdna/README
 
 gunzip Mus_musculus.GRCm38.cdna.all.fa.gz
 ```
@@ -151,6 +149,11 @@ Contigs > 1kb:  20,279
 Looking good! I think 30,722 transcripts is still a little high though, so I will subset the dataset down to 10,000 transcripts randomly.
 
 ```perl
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Bio::SeqIO;
 use List::Util qw/shuffle/;
 
 #random10k.pl
@@ -206,6 +209,8 @@ Excellent. Now we're ready to set up some mapping. In this experiment, we're goi
 Let's download those genomes, getting the unmasked primary assembly if possible, otherwise taking the unmasked top-level assembly:
 
 ```bash
+#!/usr/bin/bash
+#downloadGenomes.bash
 mkdir genomes
 cd genomes
 wget ftp://ftp.ensembl.org/pub/release-80/fasta/rattus_norvegicus/dna/Rattus_norvegicus.Rnor_6.0.dna.toplevel.fa.gz
@@ -225,86 +230,122 @@ gunzip *.gz*
 ```
 ```
 
-We'll also need the full collection of protein sequences from these organisms:
+We'll also need the full collection of cdna sequences from these organisms:
 ```bash
 cd /mnt/Data3/arrayDesignPaper/ensembl/genomes
 
 #!/bin/bash
-#downloadProteins.bash
-mkdir proteins
-cd proteins
+#downloadCDNAs.bash
+mkdir cdnas
+cd cdnas
 
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/rattus_norvegicus/pep/Rattus_norvegicus.Rnor_6.0.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/homo_sapiens/pep/Homo_sapiens.GRCh38.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/sus_scrofa/pep/Sus_scrofa.Sscrofa10.2.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/loxodonta_africana/pep/Loxodonta_africana.loxAfr3.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/ornithorhynchus_anatinus/pep/Ornithorhynchus_anatinus.OANA5.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/gallus_gallus/pep/Gallus_gallus.Galgal4.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/xenopus_tropicalis/pep/Xenopus_tropicalis.JGI_4.2.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/anolis_carolinensis/pep/Anolis_carolinensis.AnoCar2.0.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/latimeria_chalumnae/pep/Latimeria_chalumnae.LatCha1.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/takifugu_rubripes/pep/Takifugu_rubripes.FUGU4.pep.all.fa.gz
-wget ftp://ftp.ensembl.org/pub/release-80/fasta/petromyzon_marinus/pep/Petromyzon_marinus.Pmarinus_7.0.pep.all.fa.gz
-wget ftp://ftp.ensemblgenomes.org/pub/metazoa/release-26/fasta/strongylocentrotus_purpuratus/pep/Strongylocentrotus_purpuratus.GCA_000002235.2.26.pep.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/rattus_norvegicus/cdna/Rattus_norvegicus.Rnor_6.0.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/sus_scrofa/cdna/Sus_scrofa.Sscrofa10.2.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/loxodonta_africana/cdna/Loxodonta_africana.loxAfr3.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/ornithorhynchus_anatinus/cdna/Ornithorhynchus_anatinus.OANA5.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/gallus_gallus/cdna/Gallus_gallus.Galgal4.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/xenopus_tropicalis/cdna/Xenopus_tropicalis.JGI_4.2.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/anolis_carolinensis/cdna/Anolis_carolinensis.AnoCar2.0.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/latimeria_chalumnae/cdna/Latimeria_chalumnae.LatCha1.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/takifugu_rubripes/cdna/Takifugu_rubripes.FUGU4.cdna.all.fa.gz
+wget ftp://ftp.ensembl.org/pub/release-80/fasta/petromyzon_marinus/cdna/Petromyzon_marinus.Pmarinus_7.0.cdna.all.fa.gz
+wget ftp://ftp.ensemblgenomes.org/pub/metazoa/release-26/fasta/strongylocentrotus_purpuratus/cdna/Strongylocentrotus_purpuratus.GCA_000002235.2.26.cdna.all.fa.gz
 
 gunzip *
 ```
 
-We're going to use exonerate protein2genome to map all of these proteins to their respective genomes.
+We're going to use exonerate est2genome to map all of these proteins to their respective genomes.
 ```bash
 cd /mnt/Data3/arrayDesignPaper/ensembl/genomes
+```
+```perl
+#!/usr/bin/perl
+#prepareExonerate.pl
 
-#!/bin/bash
-#prepareExonerate.bash
-cd ../
+use strict;
+use warnings;
+use Getopt::Long;
+use Parallel::ForkManager;
 
-fasta2esd --softmask no Loxodonta_africana.loxAfr3.dna.toplevel.fa Loxodonta_africana.loxAfr3.dna.toplevel.esd
-fasta2esd --softmask no Ornithorhynchus_anatinus.OANA5.dna.toplevel.fa Ornithorhynchus_anatinus.OANA5.dna.toplevel.esd
-fasta2esd --softmask no Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.fa Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.esd
-fasta2esd --softmask no Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.fa Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.esd
-fasta2esd --softmask no Takifugu_rubripes.FUGU4.dna.toplevel.fa Takifugu_rubripes.FUGU4.dna.toplevel.esd
-fasta2esd --softmask no Latimeria_chalumnae.LatCha1.dna.toplevel.fa Latimeria_chalumnae.LatCha1.dna.toplevel.esd
-fasta2esd --softmask no Anolis_carolinensis.AnoCar2.0.dna.toplevel.fa Anolis_carolinensis.AnoCar2.0.dna.toplevel.esd
-fasta2esd --softmask no Xenopus_tropicalis.JGI_4.2.dna.toplevel.fa Xenopus_tropicalis.JGI_4.2.dna.toplevel.esd
-fasta2esd --softmask no Gallus_gallus.Galgal4.dna.toplevel.fa Gallus_gallus.Galgal4.dna.toplevel.esd
-fasta2esd --softmask no Sus_scrofa.Sscrofa10.2.dna.toplevel.fa Sus_scrofa.Sscrofa10.2.dna.toplevel.esd
-fasta2esd --softmask no Homo_sapiens.GRCh38.dna.primary_assembly.fa Homo_sapiens.GRCh38.dna.primary_assembly.esd
-fasta2esd --softmask no Rattus_norvegicus.Rnor_6.0.dna.toplevel.fa Rattus_norvegicus.Rnor_6.0.dna.toplevel.esd
 
-esd2esi Loxodonta_africana.loxAfr3.dna.toplevel.esd Loxodonta_africana.loxAfr3.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Ornithorhynchus_anatinus.OANA5.dna.toplevel.esd Ornithorhynchus_anatinus.OANA5.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.esd Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.esd Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Takifugu_rubripes.FUGU4.dna.toplevel.esd Takifugu_rubripes.FUGU4.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Latimeria_chalumnae.LatCha1.dna.toplevel.esd Latimeria_chalumnae.LatCha1.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Anolis_carolinensis.AnoCar2.0.dna.toplevel.esd Anolis_carolinensis.AnoCar2.0.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Xenopus_tropicalis.JGI_4.2.dna.toplevel.esd Xenopus_tropicalis.JGI_4.2.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Gallus_gallus.Galgal4.dna.toplevel.esd Gallus_gallus.Galgal4.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Sus_scrofa.Sscrofa10.2.dna.toplevel.esd Sus_scrofa.Sscrofa10.2.dna.toplevel.trans.esi --translate yes --memorylimit 25600
-esd2esi Homo_sapiens.GRCh38.dna.primary_assembly.esd Homo_sapiens.GRCh38.dna.primary_assembly.trans.esi --translate yes --memorylimit 25600
-esd2esi Rattus_norvegicus.Rnor_6.0.dna.toplevel.esd Rattus_norvegicus.Rnor_6.0.dna.toplevel.trans.esi --translate yes --memorylimit 25600
+my @fasta2esdCommands = ("fasta2esd --softmask no Loxodonta_africana.loxAfr3.dna.toplevel.fa Loxodonta_africana.loxAfr3.dna.toplevel.esd",
+                         "fasta2esd --softmask no Ornithorhynchus_anatinus.OANA5.dna.toplevel.fa Ornithorhynchus_anatinus.OANA5.dna.toplevel.esd",
+                         "fasta2esd --softmask no Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.fa Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.esd",
+                         "fasta2esd --softmask no Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.fa Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.esd",
+                         "fasta2esd --softmask no Takifugu_rubripes.FUGU4.dna.toplevel.fa Takifugu_rubripes.FUGU4.dna.toplevel.esd",
+                         "fasta2esd --softmask no Latimeria_chalumnae.LatCha1.dna.toplevel.fa Latimeria_chalumnae.LatCha1.dna.toplevel.esd",
+                         "fasta2esd --softmask no Anolis_carolinensis.AnoCar2.0.dna.toplevel.fa Anolis_carolinensis.AnoCar2.0.dna.toplevel.esd",
+                         "fasta2esd --softmask no Xenopus_tropicalis.JGI_4.2.dna.toplevel.fa Xenopus_tropicalis.JGI_4.2.dna.toplevel.esd",
+                         "fasta2esd --softmask no Gallus_gallus.Galgal4.dna.toplevel.fa Gallus_gallus.Galgal4.dna.toplevel.esd",
+                         "fasta2esd --softmask no Sus_scrofa.Sscrofa10.2.dna.toplevel.fa Sus_scrofa.Sscrofa10.2.dna.toplevel.esd",
+                         "fasta2esd --softmask no Homo_sapiens.GRCh38.dna.primary_assembly.fa Homo_sapiens.GRCh38.dna.primary_assembly.esd",
+                         "fasta2esd --softmask no Rattus_norvegicus.Rnor_6.0.dna.toplevel.fa Rattus_norvegicus.Rnor_6.0.dna.toplevel.esd");
+
+my @esd2esiCommands = ("esd2esi Loxodonta_africana.loxAfr3.dna.toplevel.esd Loxodonta_africana.loxAfr3.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Ornithorhynchus_anatinus.OANA5.dna.toplevel.esd Ornithorhynchus_anatinus.OANA5.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.esd Strongylocentrotus_purpuratus.GCA_000002235.2.26.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.esd Petromyzon_marinus.Pmarinus_7.0.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Takifugu_rubripes.FUGU4.dna.toplevel.esd Takifugu_rubripes.FUGU4.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Latimeria_chalumnae.LatCha1.dna.toplevel.esd Latimeria_chalumnae.LatCha1.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Anolis_carolinensis.AnoCar2.0.dna.toplevel.esd Anolis_carolinensis.AnoCar2.0.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Xenopus_tropicalis.JGI_4.2.dna.toplevel.esd Xenopus_tropicalis.JGI_4.2.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Gallus_gallus.Galgal4.dna.toplevel.esd Gallus_gallus.Galgal4.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Sus_scrofa.Sscrofa10.2.dna.toplevel.esd Sus_scrofa.Sscrofa10.2.dna.toplevel.esi --memorylimit 25600",
+                       "esd2esi Homo_sapiens.GRCh38.dna.primary_assembly.esd Homo_sapiens.GRCh38.dna.primary_assembly.esi --memorylimit 25600",
+                       "esd2esi Rattus_norvegicus.Rnor_6.0.dna.toplevel.esd Rattus_norvegicus.Rnor_6.0.dna.toplevel.esi --memorylimit 25600");
+
+my $forkManager = Parallel::ForkManager->new(8);
+foreach my $command (@fasta2esdCommands) {
+    $forkManager->start and next;
+    system($command);
+    $forkManager->finish;
+}
+$forkManager->wait_all_children;
+
+my $forkManager 2= Parallel::ForkManager->new(8);
+foreach my $command (@esd2esiCommands) {
+    $forkManager2->start and next;
+    system($command);
+    $forkManager2->finish;
+}
+$forkManager2->wait_all_children;
 ```
 
-The above will take several hours. We want to map the orthologous proteins from each species to their own reference genomes. So, we will need to find the orthologous proteins from each species. First we'll make blast databases from each protein set:
+The above will take several hours. We want to map the orthologous proteins from each species to their own reference genomes. So, we will need to find the orthologous cDNAs from each species. First we'll make blast databases from each cDNA set:
 ```bash
-cd proteins
-for i in *.pep.all.fa; do makeblastdb -in $i -dbtype prot; done
+cd cdnas
+for i in *.cdna.all.fa; do makeblastdb -in $i -dbtype nucl; done
 ```
 
-Now we'll iterate through each of the protein sets and blastx the mouse cDNAs to each, only outputting the best match:
+Now we'll iterate through each of the cDNA sets and tblastx the mouse cDNAs to each, only outputting the best match:
 
-```bash
-for i in *.pep.all.fa; do OUTFILE=$i".proteinMatches"; blastx -db $i -query ../../mmGRCm38.cdna.rand10kLongest.fa -outfmt 6 -max_target_seqs 1 -num_threads 10 -out $OUTFILE ; done
-```
-
-The blastx'ing will also take a few hours.
-
-After the blastx is done, we'll parse the blastx results to pull out all the protein sequences that matched and store them into a new file for exonerate protein2genome mapping:
 
 ```perl
 #!/usr/bin/perl
 
-# pullOutMatchingProteins.pl
+#runTBlastX.pl
+use strict;
+use warnings;
+
+my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
+
+foreach my $species (@speciesArray) {
+    my $speciesCDNAfile = $species . ".cdna.all.fa";
+    my $outFile = $species . ".cdna.all.fa.cdnaMatches";
+    system("tblastx -db $speciesCDNAfile -query ../../mmGRCm38.cdna.rand10kLongest.fa -outfmt 6 -max_target_seqs 1 -num_threads 32 -out $outFile);
+}
+```
+
+
+The blastx'ing will also take a few hours.
+
+After the blastx is done, we'll parse the blastx results to pull out all the cDNA sequences that matched and store them into a new file for exonerate est2genome mapping:
+
+```perl
+#!/usr/bin/perl
+
+# pullOutMatchingCDNAs.pl
 
 use strict;
 use warnings;
@@ -314,24 +355,25 @@ use Bio::SearchIO;
 my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
 
 foreach my $species (@speciesArray) {
-    my $proteinFasta = $species . ".pep.all.fa";
+    my $cdnaFasta = $species . ".cdna.all.fa";
 
-    my %protHash;
-    my $seqIn = Bio::SeqIO->new(-file => $proteinFasta,
+    my %cdnaHash;
+    my $seqIn = Bio::SeqIO->new(-file => $cdnaFasta,
                                 -format => 'fasta');
     while (my $seq = $seqIn->next_seq()) {
-        $protHash{$seq->display_id()} = $seq;
+        $cdnaHash{$seq->display_id()} = $seq;
     }
 
-    my $proteinOut = $species . ".pep.matching.fa";
-    my $seqOut = Bio::SeqIO->new(-file => ">$proteinOut",
+    my $cdnaOut = $species . ".cdna.matching.fa";
+    my $seqOut = Bio::SeqIO->new(-file => ">$cdnaOut",
                                  -format => 'fasta');
 
-    my $blastResults = $species . ".pep.all.fa.proteinMatches";
+    my $blastResults = $species . ".cdna.all.fa.cdnaMatches";
+    my %keeperHash;
     open(my $blastFH, "<", $blastResults) or die "Couldn't open $blastResults for reading: $!\n";
     while (my $line = <$blastFH>) {
         my @fields = split(/\t/, $line);
-        $seqOut->write_seq($protHash{$fields[1]});
+        $seqOut->write_seq($cdnaHash{$fields[1]});
     }
 }
 ```
@@ -339,18 +381,18 @@ foreach my $species (@speciesArray) {
 Now we'll set these aside:
 
 ```bash
-mkdir matchingProteins
-mv "*.pep.matching.fa" matchingProteins/
+mkdir matchingCDNAs
+mv "*.cdna.matching.fa" matchingCDNAs/
 ```
 
-We also need to create a map of which proteins match the query transcripts from
+We also need to create a map of which cDNAs match the query transcripts from
 the different reference genomes. We can do that by parsing the blast results with
 this script, which outputs a file called "blastMap.txt" with that info:
 
 ```perl
 #!/usr/bin/perl
 
-# pullOutMatchingProteins.pl
+# makeBlastMap.pl
 
 use strict;
 use warnings;
@@ -362,7 +404,7 @@ my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromy
 open(my $outFH, ">", "blastMap.txt");
 my %resultsHash;
 foreach my $species (@speciesArray) {
-    my $blastResults = $species . ".pep.all.fa.proteinMatches";
+    my $blastResults = $species . ".cdna.all.fa.cdnaMatches";
     open(my $blastFH, "<", $blastResults) or die "Couldn't open $blastResults for reading: $!\n";
     my $result = " ";
     while (my $line = <$blastFH>) {
@@ -379,14 +421,14 @@ foreach my $species (@speciesArray) {
 
 
 
-Exonerate protein2genome is very slow unless you change some settings around, and it seems to run faster when you separate each sequence into its own file. Using only one sequence per run also has the benefit of showing you where you left off if exonerate segfaults.
+Exonerate est2genome is very slow unless you change some settings around, and it seems to run faster when you separate each sequence into its own file. Using only one sequence per run also has the benefit of showing you where you left off if exonerate segfaults.
 
 So we're first gonna need to separate the protein fasta files into new files, one sequence per file:
 
 ```perl
 #!/usr/bin/perl
 
-# separateProteinsIntoIndividuals.pl
+# separateCDNAsIntoIndividuals.pl
 
 use strict;
 use warnings;
@@ -402,7 +444,7 @@ foreach my $species (@speciesArray) {
     }
     chdir $species;
 
-    my $seqsFile = "../" . $species . ".pep.matching.fa";
+    my $seqsFile = "../" . $species . ".cdna.matching.fa";
 
     my $seqIn = Bio::SeqIO->new(-file => $seqsFile,
                                 -format => 'fasta');
@@ -410,7 +452,7 @@ foreach my $species (@speciesArray) {
     my $counter = 0;
     while (my $seq = $seqIn->next_seq()) {
         $counter++;
-        my $seqOutName = $seq->display_id() . ".pep.fasta";
+        my $seqOutName = $seq->display_id() . ".cdna.fasta";
         my $seqOut = Bio::SeqIO->new(-file => ">$seqOutName",
                                      -format => 'fasta');
 
@@ -422,7 +464,7 @@ foreach my $species (@speciesArray) {
 }
 ```
 
-Note that some mouse transcripts might have selected the same genes from the reference set as others for the best blastx hit. This means that there should be fewer actual peptide fastas than query sequences that had positive matches in the blastx search.
+Note that some mouse transcripts might have selected the same genes from the reference set as others for the best blastx hit. This means that there should be fewer actual cDNA fastas than query sequences that had positive matches in the blastx search.
 
 Now let's loop through all those sequences and align them to their proper genomes. The sending multiple queries to a single exonerate-server tends to make things segfault, so instead we'll instantiate exonerate-servers so that each thread gets its own.
 
@@ -430,7 +472,7 @@ Now let's loop through all those sequences and align them to their proper genome
 ```perl
 #!/usr/bin/perl
 
-# exonerateP2G.pl
+# exonerateE2G.pl
 
 use strict;
 use warnings;
@@ -446,29 +488,26 @@ my $portCounter = 12886; # We'll start on port 12887 and go up 29 more
 foreach my $species (@speciesArray) {
     my $genomeFile;
     if ($species eq "Homo_sapiens.GRCh38") {
-        $genomeFile = "Homo_sapiens.GRCh38.dna.primary_assembly.trans.esi";
+        $genomeFile = "Homo_sapiens.GRCh38.dna.primary_assembly.esi";
     } else {
-        my $genomeFile = $species . ".dna.toplevel.trans.esi";
+        $genomeFile = $species . ".dna.toplevel.esi";
     }
 
-    # We'll use a total of 4 possible threads for the forkmanager, because
-    # each thread will initiate two processes--the exonerate server and the
-    # exonerate clients. We want to use about 8 CPUs total, so set this
-    # to 4.
-    my $forkManager = Parallel::ForkManager->new(4);
 
-    foreach my $thread (0..3) {
+    my $forkManager = Parallel::ForkManager->new(8);
+
+    foreach my $thread (0..7) {
         $portCounter++;
         $forkManager->start and next;
-        #chdir("/home/evan/spliceFinder/genomes/");
         system("exonerate-server --port $portCounter $genomeFile &");
-        sleep(30);
-        chdir("proteins/matchingProteins/");
+        sleep(90);
+        chdir("cdnas/matchingCDNAs/");
         chdir $species;
         unless(-d "exonerate") {
             mkdir "exonerate";
         }
 
+        # Read in all of the cDNA file names
         opendir(my $dirFH, "./");
         my @files = readdir($dirFH);
         closedir($dirFH);
@@ -480,13 +519,14 @@ foreach my $species (@speciesArray) {
             }
         }
 
-        my $proteinsPerThread = scalar(@fastaFiles) / 4; # Decide how many proteins to provide to each thread
+        # TODO: Change the 4 below to a variable for number of threads
+        my $cDNAsPerThread = scalar(@fastaFiles) / 8; # Decide how many proteins to provide to each thread
 
-        my $beginning = $thread * $proteinsPerThread;
-        my $end = ($thread+1) * $proteinsPerThread;
+        my $beginning = $thread * $cDNAsPerThread;
+        my $end = ($thread+1) * $cDNAsPerThread;
         for (my $fileIndex=$beginning; $fileIndex < $end; $fileIndex++) {
             my $outFileName = "exonerate/" . $fastaFiles[$fileIndex] . ".p2g.exonerate";
-            system("exonerate $fastaFiles[$fileIndex] localhost:$portCounter --querytype protein --targettype dna --model p2g --bestn 1 --dnawordlen 12 --fsmmemory 4096 --hspfilter 50 --geneseed 250 > $outFileName");
+            system("exonerate $fastaFiles[$fileIndex] localhost:$portCounter --querytype dna --targettype dna --model est2genome --bestn 1 --dnawordlen 12 --fsmmemory 4096 --hspfilter 50 --geneseed 250 > $outFileName");
         }
         $forkManager->finish;
     }
@@ -497,7 +537,14 @@ foreach my $species (@speciesArray) {
 }
 ```
 
-This takes several hours to a day to run all these, assuming all goes well and you have > 30 cores to work with.
+This takes several hours to a day to run all these, assuming all goes well and you have > 8 cores or so to work with.
+
+
+
+
+
+
+
 
 After this comes one of the trickier parts. We'll process all of these exonerate files to harvest the putative contiguous genomic region sequences and align to the proteins. For instance, rat protein ENSRNOP00000046335 was mapped to the rat chromosome 7 between base pairs 143497108 and 143489162. Additionally, exonerate uncovered 8 introns spread throughout the alignment. The first intron starts at about bp 143496581 and ends at bp 143495791. So, we'll designate the first intron as running from 143496581-143497108. We want to pull the rat genomic DNA sequence from 143496581-143497108 and align it to the original mouse EST sequence.
 
@@ -619,10 +666,11 @@ instance). We'll do that with the following script:
 use strict;
 use warnings;
 use Bio::SeqIO;
+use Bio::SearchIO;
 use Data::Dumper;
 
 # We'll need to store the locations of all of our inferred splice sites:
-open(my $spliceSitesFile, ">", "inferredSpliceSites.txt");
+open(my $spliceSitesFile, ">", "inferredSpliceSitesEST2Genome.txt");
 
 
 # We also need to have an index of all the original mRNA query sequences:
@@ -654,6 +702,9 @@ my $currentGenome; # We'll hold the current genome we're working on in a variabl
                    # when we change genomes
 my %genomeHash;
                
+               
+
+
 while (my $line = <$exonsFile>) {
     chomp($line);
     next if ($line =~ /^Species\tProtein\tHitScaffold\tProteinIntronSites/); # Skip the header line
@@ -683,7 +734,8 @@ while (my $line = <$exonsFile>) {
     my @putativeRefExons = split(/,/, $fields[3]);
 
     foreach my $putativeRefExon (@putativeRefExons) {
-        open(my $tempRefFasta, ">", "tempRefExon.fasta");
+        my $proteinFileName = $fields[1] . ".fasta";
+        open(my $tempRefFasta, ">", "$proteinFileName");
         print $tempRefFasta ">tempRefExon\n";
         print $tempRefFasta $putativeRefExon . "\n";
         close($tempRefFasta);
@@ -691,30 +743,134 @@ while (my $line = <$exonsFile>) {
         # We now have the sequence that we want in tempRefExon.fasta, which
         # will be rewritten in every iteration of the loop. We want to align
         # that to a single target transcript, which we'll pull from the blast map
-        open(my $tempMRNAfasta, ">", "tempMRNA.fasta");
-        print $tempMRNAfasta ">SEQUENCENAME\n" . $mRNAhash{$blastMap{$fields[0]}{$fields[1]}}->seq ."\n";
+        my $name = $blastMap{$fields[0]}{$fields[1]} . ".fasta";
+        open(my $tempMRNAfasta, ">", $name);
+        print $tempMRNAfasta ">$blastMap{$fields[0]}{$fields[1]}\n" . $mRNAhash{$blastMap{$fields[0]}{$fields[1]}}->seq ."\n";
         close($tempMRNAfasta);
         
         # Now align those two sequences:
-        system("exonerate -m est2genome -q tempRefExon.fasta -t tempMRNA.fasta");
+        #system("exonerate -m est2genome --bestn 1 -q $proteinFileName -t $name > exonerate.output");
         
         # Or maybe use the ungapped:trans? I used est2genome in the salamander array design
-        #system("exonerate -m ungapped:trans -q tempRefExon.fasta -t tempMRNA.fasta");
+        # my $exonerateOutput = `exonerate -m ungapped:trans --bestn 1 -q $proteinFileName -t $name --showtargetgff 1`;
+        # my @exonerateOutputLines = split(/\n/, $exonerateOutput);
+        # 
+        # my $lineCounter = 0;
+        # foreach my $exonerateLine (@exonerateOutputLines) {
+        #     $lineCounter++;
+        #     if ($exonerateLine =~ /^# seqname source feature start end score strand frame attributes/) {
+        #         my $GFFline = $exonerateOutputLines[$lineCounter+2]; # This should be the actual GFF line
+        #         my @GFFfields = split(/\t/, $GFFline);
+        #         print $spliceSitesFile $blastMap{$fields[0]}{$fields[1]} . "\t" . $fields[0] . "\t" . $fields[1] . "\t" . $GFFfields[3] . "," . $GFFfields[4] . "\n";
+        #         
+        #     }
+        # }
         
-        # And now we'll process the output to define the splice sites
-        #my $exonIn = Bio::SearchIO->new(-file => "EXONERATEFILE",
-        #                                -format => 'fasta');
-        #...
         
-        # print $spliceSitesFile $mRNAname . "\t" . COMMASEPARATEDSPLICESITES . "\n";
+        # ORRRRRR should I maybe use est2genome, but switch the query and target, like so:
+                my $exonerateOutput = `exonerate -m est2genome --bestn 1 -q $name -t $proteinFileName --showtargetgff 1`;
+        my @exonerateOutputLines = split(/\n/, $exonerateOutput);
         
-        
-        
-        # And finally we'll get rid of all those temporary files:
-        #unlink("tempMRNA.fasta", "tempRefExon.fasta");
+        my $lineCounter = 0;
+        foreach my $exonerateLine (@exonerateOutputLines) {
+            $lineCounter++;
+            if ($exonerateLine =~ /^# seqname source feature start end score strand frame attributes/) {
+                my $GFFline = $exonerateOutputLines[$lineCounter+2]; # This should be the actual GFF line
+                my @GFFfields = split(/\t/, $GFFline);
+                print $spliceSitesFile $blastMap{$fields[0]}{$fields[1]} . "\t" . $fields[0] . "\t" . $fields[1] . "\t" . $GFFfields[3] . "," . $GFFfields[4] . "\n";
+                
+            }
+        }
+
+
+
+
+
+#        # And now we'll process the output to define the splice sites
+#        my $exonIn = Bio::SearchIO->new(-file => "exonerate.output",
+#                                        -format => 'exonerate');
+#        while (my $result = $exonIn->next_result()) {
+#            while (my $hit = $result->next_hit()) {
+#                # If there are multiple HSPs in our file, then that means that
+#                # there is a putative intron introduced. We don't expect that to
+#                # happen, so we'll at least keep track of how many times it does...
+#                
+#                if ($hit->num_hsps() > 1) { print "More than one HSP for a putative exon in $fields[1]\n"; }
+#                while (my $hsp = $hit->next_hsp()) {
+#                    my $start = $hsp->start('subject');
+#                    my $end = $hsp->end('subject');
+#                    
+#                    if ($start < $end) {
+#                        $start = $start - 0.5;
+#                        $end = $end + 0.5;
+#                    } elsif ($start > $end) {
+#                        $start = $start + 0.5;
+#                        $end = $end - 0.5;
+#                    } else {
+#                        die "Contiguous region start site isn't larger or smaller than end site\n";
+#                    }
+#                    # We want to print the following to the output file: MouseProteinID  Species  InferredSpliceSites
+#                    print $spliceSitesFile $blastMap{$fields[0]}{$fields[1]} . "\t" . $fields[0] . "\t" . $fields[1] . "\t" . $start . "," . $end . "\n";
+#                }
+#            }
+#    
+#        }                
+#        # And finally we'll get rid of all those temporary files:
+        unlink($name, $proteinFileName);
+
+
+
+
+
+
     }
 }
+
 ```
+
+
+
+
+
+
+
+
+
+
+### TODO ###
+    --Make it easier to download the ENSEMBL genomes and cDNAs
+    --Use a config file to specify locations of genome and cDNA files
+    --Run first with 100 cDNAs, then change to 10,000
+    --Make explicit that we want exonerate 2.4
+    --Make sure the soft-masking can be set in the config file
+
+
+
+### Config file should include ###
+    1) How many threads
+    2) Which genomes
+    3) Where genomes are
+    4) How many loci to include
+    5) Minimum target length
+    6) Path to  blastx
+    7) Ports for exonerate-server
+    8) Path to exonerate est2genome
+    9) Output directory name
+    10) Name of cDNA fasta for original targets
+    11) Change the pullOutMatchingCDNAs.pl to not output duplicates
+    12) Sort out logic of multiple cDNA queries matching the same target cDNAs
+    13) Soft-masked genome files?
+
+
+
+
+
+
+
+
+
+
+
 
 
 
