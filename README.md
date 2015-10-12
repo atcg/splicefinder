@@ -466,6 +466,8 @@ foreach my $species (@speciesArray) {
 
 Note that some mouse transcripts might have selected the same genes from the reference set as others for the best blastx hit. This means that there should be fewer actual cDNA fastas than query sequences that had positive matches in the blastx search.
 
+
+#### Finding splice sites in reference cDNAs ####
 Now let's loop through all those sequences and align them to their proper genomes. The sending multiple queries to a single exonerate-server tends to make things segfault, so instead we'll instantiate exonerate-servers so that each thread gets its own.
 
 
@@ -519,13 +521,13 @@ foreach my $species (@speciesArray) {
             }
         }
 
-        # TODO: Change the 4 below to a variable for number of threads
-        my $cDNAsPerThread = scalar(@fastaFiles) / 8; # Decide how many proteins to provide to each thread
+        # TODO: Change the hard coded number for threads below to a variable for number of threads
+        my $cDNAsPerThread = scalar(@fastaFiles) / 8; # Decide how many cDNAs to provide to each thread
 
         my $beginning = $thread * $cDNAsPerThread;
         my $end = ($thread+1) * $cDNAsPerThread;
         for (my $fileIndex=$beginning; $fileIndex < $end; $fileIndex++) {
-            my $outFileName = "exonerate/" . $fastaFiles[$fileIndex] . ".p2g.exonerate";
+            my $outFileName = "exonerate/" . $fastaFiles[$fileIndex] . ".e2g.exonerate";
             system("exonerate $fastaFiles[$fileIndex] localhost:$portCounter --querytype dna --targettype dna --model est2genome --bestn 1 --dnawordlen 12 --fsmmemory 4096 --hspfilter 50 --geneseed 250 > $outFileName");
         }
         $forkManager->finish;
@@ -543,12 +545,14 @@ This takes several hours to a day to run all these, assuming all goes well and y
 
 
 
+#### Harvesting splice sites and mapping to ESTs ####
 
+After this comes one of the trickier parts. We'll process all of these exonerate files to harvest the
+putative contiguous genomic region sequences. For instance, rat cDNA ENSRNOT00000018050 was mapped to
+rate chromosome 4 between base pairs 148761547 and 148757362. Additionally, exonerate found 1 intron
+between bases 206 and 207 of the cDNA. We want to pull the rat DNA sequence from 1-206 in the cDNA (and also the one from 207-2378) and align it to the original mouse EST sequence.
 
-
-After this comes one of the trickier parts. We'll process all of these exonerate files to harvest the putative contiguous genomic region sequences and align to the proteins. For instance, rat protein ENSRNOP00000046335 was mapped to the rat chromosome 7 between base pairs 143497108 and 143489162. Additionally, exonerate uncovered 8 introns spread throughout the alignment. The first intron starts at about bp 143496581 and ends at bp 143495791. So, we'll designate the first intron as running from 143496581-143497108. We want to pull the rat genomic DNA sequence from 143496581-143497108 and align it to the original mouse EST sequence.
-
-Let's say this exon sequence aligns at base pairs 10-537 in the mouse EST. We would then code this as rat-inferred splice sites before base 10 and after 537 in the mouse EST. We'll gather all such inferred splice sites for each EST, keeping track of which ones come from which species.
+Let's say this exon sequence aligns at base pairs 10-215 in the mouse EST. We would then code this as rat-inferred splice sites before base 10 and after 215 in the mouse EST. We'll gather all such inferred splice sites for each EST, keeping track of which ones come from which species.
 
 I'll present this all in heavily-commented code below.
 
@@ -563,19 +567,41 @@ use Bio::SearchIO; # <= We'll use this to parse the exonerate reports
 use Bio::SeqIO;
 
 
+# We have information on where a species' cDNA mapped to its own genome, but we also
+# need to know which original species cDNA that cDNA corresponded to. Here we'll build both
+# a hash of all of the original cDNA sequences and also an index of all the original mRNA
+# query sequences:
+my %mRNAhash;
+###TODO: Change the filename in the next line to a variable set in the config file
+my $mRNAin = Bio::SeqIO -> new(-file => "../mmGRCm38.cdna.rand10kLongest.fa",
+                               -format => 'fasta');
+while (my $seq = $mRNAin->next_seq()) {
+    $mRNAhash{$seq->display_id()} = $seq;
+}
+
+# Here's the map of which cDNAs from the different reference genomes
+# correspond to the original mRNA query sequences. We created this earlier in a file called
+# blastMap.txt, which is in the cdnas folder:
+my %blastMap;
+open(my $blastMapFH, "<", "cdnas/blastMap.txt") or die "Couldn't open blastMap.txt: $!\n";
+while(my $line = <$blastMapFH>) {
+    chomp($line);
+    my @fields = split(/\t/, $line);
+    $blastMap{$fields[0]}{$fields[2]} = $fields[1]; # This equates to $blastMap{species}{speciesCDNAName} = queryRNAname
+}
+
+
+
 # We'll deal with all the different reference genomes one-by-one in a loop
 my @speciesArray = ("Strongylocentrotus_purpuratus.GCA_000002235.2.26", "Petromyzon_marinus.Pmarinus_7.0", "Takifugu_rubripes.FUGU4", "Latimeria_chalumnae.LatCha1", "Anolis_carolinensis.AnoCar2.0", "Xenopus_tropicalis.JGI_4.2", "Gallus_gallus.Galgal4", "Ornithorhynchus_anatinus.OANA5", "Loxodonta_africana.loxAfr3", "Sus_scrofa.Sscrofa10.2", "Homo_sapiens.GRCh38", "Rattus_norvegicus.Rnor_6.0");
 
 # All of the data about the splice positions will be printed into an intermediate
 # output file for future use and inspection
-open(my $intronOutFile, ">", "putativeExons.txt");
+open(my $intronOutFile, ">", "putativeSplicePositions.txt");
 # The next line prints a header to the output file
-print $intronOutFile "Species\tProtein\tHitScaffold\tPutativeGenomicExons\n";
-
+print $intronOutFile "targetCDNA\tSpecies\tPutativeSplicePositions\n";
 
 foreach my $species (@speciesArray) {
-
-
     # First we'll put the genome scaffolds into a hash:
     my %genomeHash;
     my $genomeFile;
@@ -584,54 +610,99 @@ foreach my $species (@speciesArray) {
     } else {
         $genomeFile = $species . ".dna.toplevel.fa";
     }
-    print $genomeFile . "\n";
+#    print $genomeFile . "\n";
     my $genomeIn = Bio::SeqIO->new(-file   => $genomeFile,
                                    -format => 'fasta');
     while (my $seq = $genomeIn->next_seq()) {
         $genomeHash{$seq->display_id()} = $seq;
     }
-    
-    # Now we'll go through the exonerate files.
-    # Each reference genome has a collection of proteins associated with it, and each of these proteins have
-    # been mapped to its respective reference genome. We'll iterate through each one of these exonerate output
-    # files:
-    my $speciesFolder = "proteins/matchingProteins/$species/exonerate";
+
+    my $speciesFolder = "cdnas/matchingCDNAs/$species/exonerate";
     chdir($speciesFolder);
     opendir(my $dirFH, "./");
     my @exonerateFiles = readdir($dirFH);
     closedir($dirFH);
     
     foreach my $exonerateFile (@exonerateFiles) {
+        unless ($exonerateFile =~ /\.exonerate$/) {
+	    next;
+	}
+ #       print $exonerateFile . "\n";
         my $exonIO = Bio::SearchIO->new(-file => $exonerateFile,
                                          -format => 'exonerate');
         while (my $result = $exonIO->next_result()) {
-            print $intronOutFile $species . "\t" . $result->query_name();
             while (my $hit = $result->next_hit()) {
-                print $intronOutFile "\t" . $hit->name() . "\t";
                 my $numHSPS = $hit->num_hsps();
                 my $hspCounter = 0;
                 while (my $hsp = $hit->next_hsp()) {
-                    $hspCounter++;
-                    #print $intronOutFile $hsp->start('subject') . ":";
-                    #print $intronOutFile $hsp->end('subject');
+
+                    # Pull out the genomic sequence from the original genome file that has the same bounds as the HSP
+                    # Then we'll write that HSP sequence to a new file
+                    my $sequence = $genomeHash{$hit->name()}->subseq($hsp->start('subject'), $hsp->end('subject'));
+                    print $sequence . "\n";
+                    my $seqFileName = $hit->name() . "." . $hsp->start . "-" . $hsp->end . ".fasta";
+                    open(my $exonFH, ">", $seqFileName);
+                    print $exonFH ">$seqFileName\n$sequence\n";
+                    close($exonFH);
                     
+                    
+                    # We need to pull out the original cDNA sequence from the original possible target set,
+                    # and write it to a temporary file
+                    my $originalCDNAname = $mRNAhash{$blastMap{$species}{$result->query_name}}->display_id();
+                    print "originalCDNAname = $originalCDNAname\n";
+                    my $originalCDNAfileName = "originalSeq." . $originalCDNAname . ".fasta";
+                    open(my $tempSeqFH, ">", $originalCDNAfileName);
+                    print $tempSeqFH ">" . $mRNAhash{$blastMap{$species}{$result->query_name}}->display_id() . "\n" . $mRNAhash{$blastMap{$species}{$result->query_name}}->seq() . "\n";
+
+                    
+
+                    my $mapExonFile = $result->query_name . "." . $hsp->start . "-" . $hsp->end . ".map2." . $originalCDNAname . ".exonerate";
+
+                    system("exonerate --model coding2coding --bestn 1 $seqFileName $originalCDNAfileName > $mapExonFile");
+                    #system("tblastx -query $seqFileName -db $originalCDNAfileName > $mapExonFile");
+                    
+                    
+                    # Now we need to parse that exonerate output
+                    
+                    
+                    
+                    # Now we delete the exonerate output
+                    
+                    
+
+
                     # Note that filtering this way, using the BioPerl-parsed HSP start and stop
                     # base locations from an exonerate file, is a little conservative. If the
                     # bases coding for a single amino acid are split by an intron, then it
                     # chops these bases off and defines the start site as the terminal end of
                     # the last amino acid
-                    print $intronOutFile $genomeHash{$hit->name()}->subseq($hsp->start('subject'), $hsp->end('subject'));
                     unless ($hspCounter == $numHSPS) {
-                        print $intronOutFile ",";
+                        #print $intronOutFile ",";
                     }
                 }  
             }
-            print $intronOutFile "\n";
         }
     }
     chdir("../../../..");
 }
+
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 This gets us pretty close to where we want to be. Here's an excerpt from what the file we created ("intronPositions.txt") looks like:
 ```text
@@ -852,7 +923,8 @@ while (my $line = <$exonsFile>) {
     3) Where genomes are
     4) How many loci to include
     5) Minimum target length
-    6) Path to  blastx
+        5a) Maximum target length--distribution (beta? uniform?)
+    6) Path to tblastx
     7) Ports for exonerate-server
     8) Path to exonerate est2genome
     9) Output directory name
@@ -860,14 +932,6 @@ while (my $line = <$exonsFile>) {
     11) Change the pullOutMatchingCDNAs.pl to not output duplicates
     12) Sort out logic of multiple cDNA queries matching the same target cDNAs
     13) Soft-masked genome files?
-
-
-
-
-
-
-
-
 
 
 
